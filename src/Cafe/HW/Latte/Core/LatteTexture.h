@@ -1,5 +1,6 @@
 #pragma once
 #include "Cafe/HW/Latte/Core/LatteConst.h"
+#include "Cafe/HW/Latte/TexturePack/TexPackKtx2Loader.h"
 
 struct LatteSamplerState
 {
@@ -200,6 +201,16 @@ public:
 	std::vector<struct LatteTextureRelation*> list_compatibleRelations; // list of other data-compatible textures that share the same memory ranges
 	// index in global texture list
 	size_t globalListIndex;
+	// TexturePack: key of the original level-0 data, recomputed on every level-0 load from guest memory
+	texpack::TextureKey texPackKey{};
+	bool texPackKeyValid{};
+	// TexturePack: KTX2 replacement. Set at creation only (host image size/format/mip count depend on it); a texture whose
+	// guest data no longer matches its replacement state is recreated (LatteTexture_TexPackRecreatePending)
+	std::optional<texpack::ReplacementDesc> texPackReplacement;
+	bool texPackEligible{};        // created for sampling (render targets / copy targets never get a replacement)
+	bool texPackRecreatePending{};
+	uint8 texPackRecreateCount{};  // consecutive recreates of this surface, capped
+	bool texPackOverrodeRule{};    // replaced although a graphic pack size/format rule matched (priority: texture pack)
 };
 
 struct LatteTextureDefinition // todo - actually use this in LatteTexture class
@@ -362,5 +373,6 @@ LatteTextureView* LatteTC_GetTextureSliceViewOrTryCreate(MPTR srcImagePtr, MPTR 
 
 void LatteTexture_MarkDynamicTextureAsChanged(LatteTextureView* textureView, sint32 sliceIndex, sint32 mipIndex, uint64 eventCounter);
 void LatteTexture_UpdateTextureFromDynamicChanges(LatteTexture* texture);
+void LatteTexture_TexPackRecreatePending(); // TexturePack: recreate textures whose KTX2 replacement state is stale
 
 void LatteTexture_UpdateDataToLatest(LatteTexture* texture);

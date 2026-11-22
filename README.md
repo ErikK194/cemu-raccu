@@ -1,5 +1,40 @@
 # **Cemu - Wii U emulator**
 
+> **cemu-raccu – KTX2 texture packs (v1.0).** This fork adds texture replacement with **KTX2 / Basis Universal UASTC**
+> files: one pack for desktop (transcoded to BC7) and Android (transcoded to ASTC 4×4), plus a lossless PNG dumper for
+> pack authors. It is the reference implementation of the
+> [Wii U KTX2 Texture Pack specification](docs/texpack/SPEC.md).
+>
+> - Overview, usage and measurements: [`docs/texpack/README.md`](docs/texpack/README.md)
+> - Building a pack: [`docs/texpack/PACK_AUTHORING.md`](docs/texpack/PACK_AUTHORING.md)
+> - Integrating KTX2 packs into another emulator: [`docs/texpack/INTEGRATION.md`](docs/texpack/INTEGRATION.md)
+> - Bugs fixed in code taken over from Cemu and the Android port:
+>   [`docs/texpack/README.md`](docs/texpack/README.md#fixes-outside-the-texture-pack-feature)
+>
+> **This repository is documentation and a reference implementation, not a product.** There are no prebuilt
+> downloads and no support. Emulator issues belong to the [Cemu project](https://github.com/cemu-project/Cemu); the
+> point here is the texture-pack format and how to implement it.
+>
+> ### Development and AI assistance
+>
+> Claude generated and revised the implementation code for the Raccu-specific additions in this fork, under
+> the direction of **ErikK194 (Raccu)**. Development followed the project's specifications (published here as
+> [`docs/texpack/SPEC.md`](docs/texpack/SPEC.md)) and the instructions supplied for the project.
+>
+> ErikK194 defined the architecture and requirements, reviewed the work, tested the fork in game, and reported
+> observed problems. These findings led to repeated correction and review rounds. Claude was used as an
+> implementation and debugging tool; project decisions and release approval remained with ErikK194.
+>
+> This attribution covers Raccu's additions and changes. The original Cemu emulator, the Android port, and
+> other existing components retain their respective contributor credits and development histories.
+>
+> Reported validation is limited to the checks and environments documented for this fork. This disclosure
+> does not change upstream Cemu's [contribution policy](CONTRIBUTING.md#ai-generated-contributions).
+>
+> The Android build is based on the Android port in
+> [cemu-project/Cemu#1909](https://github.com/cemu-project/Cemu/pull/1909). This fork is not affiliated with the Cemu
+> team; everything below is the original Cemu README.
+
 [![Build Process](https://github.com/cemu-project/Cemu/actions/workflows/build.yml/badge.svg)](https://github.com/cemu-project/Cemu/actions/workflows/build.yml)
 [![Discord](https://img.shields.io/discord/286429969104764928?label=Cemu&logo=discord&logoColor=FFFFFF)](https://discord.gg/5psYsup)
 

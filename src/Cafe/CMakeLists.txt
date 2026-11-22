@@ -150,6 +150,16 @@ add_library(CemuCafe
   HW/Latte/LatteAddrLib/LatteAddrLib_Coord.cpp
   HW/Latte/LatteAddrLib/LatteAddrLib.cpp
   HW/Latte/LatteAddrLib/LatteAddrLib.h
+  HW/Latte/TexturePack/TexPackCemu.cpp
+  HW/Latte/TexturePack/TexPackCemu.h
+  HW/Latte/TexturePack/TexPackDecode.cpp
+  HW/Latte/TexturePack/TexPackDecode.h
+  HW/Latte/TexturePack/TexPackKtx2Loader.cpp
+  HW/Latte/TexturePack/TexPackKtx2Loader.h
+  HW/Latte/TexturePack/TexPackKtx2Pack.cpp
+  HW/Latte/TexturePack/TexPackKtx2Pack.h
+  HW/Latte/TexturePack/TexPackKey.cpp
+  HW/Latte/TexturePack/TexPackKey.h
   HW/Latte/LegacyShaderDecompiler/LatteDecompilerAnalyzer.cpp
   HW/Latte/LegacyShaderDecompiler/LatteDecompiler.cpp
   HW/Latte/LegacyShaderDecompiler/LatteDecompilerEmitGLSLAttrDecoder.cpp
@@ -617,6 +627,16 @@ if(ENABLE_METAL)
     )
 endif()
 
+if(ANDROID)
+  target_sources(CemuCafe PRIVATE
+    Filesystem/fscDeviceAndroidSAF.cpp
+    Filesystem/fscDeviceAndroidSAF.h
+  )
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch64)|(AARCH64)")
+    target_link_libraries(CemuCafe PRIVATE adrenotools)
+  endif()
+endif()
+
 if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")
   target_sources(CemuCafe PRIVATE
     HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.cpp
@@ -654,6 +674,9 @@ target_link_libraries(CemuCafe PRIVATE
   CURL::libcurl
   ih264d
   zstd::zstd
+  xxHash::xxhash
+  PNG::PNG
+  basisu::basisu_encoder
   ${glslang_target}
   PUBLIC
   OpenSSL::SSL
@@ -666,7 +689,7 @@ endif()
 
 if (ENABLE_LIBUSB)
   if (ENABLE_VCPKG)
-    if(WIN32)
+    if(WIN32 OR CMAKE_HOST_WIN32) # also an Android build on a Windows host
       set(PKG_CONFIG_EXECUTABLE "${VCPKG_INSTALLED_DIR}/x64-windows/tools/pkgconf/pkgconf.exe")
     endif()
     find_package(PkgConfig REQUIRED)

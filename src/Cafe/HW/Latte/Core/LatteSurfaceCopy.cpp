@@ -3,6 +3,7 @@
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
 #include "Cafe/HW/Latte/Core/LatteSurfaceCopy.h"
+#include "Cafe/HW/Latte/TexturePack/TexPackCemu.h"
 
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 
@@ -87,6 +88,13 @@ void LatteSurfaceCopy_copySurfaceNew(const LatteSurfaceCopyParam& src, const Lat
 		LatteTexture_UpdateCacheFromDynamicTextures(sourceTexture);
 		sourceTexture->reloadFromDynamicTextures = false;
 	}
+	// TexturePack: a KTX2-replaced texture holds other host data (size, format, mips) than its guest surface, which still
+	// has the original bytes; copy those in RAM instead of reading back or copying the host image
+	if (sourceTexture->texPackReplacement)
+	{
+		LatteSurfaceCopy_CopyInRAM(src, dst, rect);
+		return;
+	}
 	// special case: RAM copy from cached texture to linear special format
 	if (dst.tilemode == Latte::E_GX2TILEMODE::TM_LINEAR_SPECIAL)
 	{
@@ -98,6 +106,14 @@ void LatteSurfaceCopy_copySurfaceNew(const LatteSurfaceCopyParam& src, const Lat
 	LatteTexture* destinationTexture = nullptr;
 	LatteTextureView* destinationView = LatteTextureViewLookupCache::lookupSliceMinSize(dst.physDataAddr, rect.x + rect.width, rect.y + rect.height, dst.pitch, 0, dst.sliceIndex, dst.surfaceFormat);
 	// todo - Instead of lookupSliceMinSize lookup the base texture by data range instead and return mip/slice index
+	if (destinationView && destinationView->baseTexture->texPackReplacement && destinationView->baseTexture != sourceTexture)
+	{
+		// TexturePack: GPU copy into a KTX2-replaced texture; the copied data wins, the replacement is dropped
+		TexPackCemu::OnReplacementDropped(false);
+		LatteTexture_Delete(destinationView->baseTexture);
+		destinationView = nullptr;
+		LatteGPUState.repeatTextureInitialization = true;
+	}
 	if (destinationView)
 		destinationTexture = destinationView->baseTexture;
 	// create destination texture if it doesnt exist

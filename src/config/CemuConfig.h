@@ -213,6 +213,16 @@ enum class CrashDump
 ENABLE_ENUM_ITERATORS(CrashDump, CrashDump::Disabled, CrashDump::Enabled);
 #endif
 
+#if BOOST_PLAT_ANDROID
+enum class DriverSettingMode
+{
+	Global,
+	System,
+	Custom,
+};
+ENABLE_ENUM_ITERATORS(DriverSettingMode, DriverSettingMode::Global, DriverSettingMode::Custom);
+#endif
+
 template <>
 struct fmt::formatter<PrecompiledShaderOption> : formatter<string_view> {
 	template <typename FormatContext>
@@ -419,6 +429,10 @@ struct CemuConfig
 #undef DISABLE_SCREENSAVER_DEFAULT
 	ConfigValue<bool> play_boot_sound{false};
 
+#if BOOST_PLAT_ANDROID
+	ConfigValue<std::string> custom_driver_path{};
+#endif
+
 	std::vector<std::string> game_paths;
 	std::mutex game_cache_entries_mutex;
 	std::vector<GameEntry> game_cache_entries;
@@ -446,6 +460,8 @@ struct CemuConfig
 	ConfigValue<bool> gx2drawdone_sync { true };
 	ConfigValue<bool> render_upside_down{ false };
 	ConfigValue<bool> async_compile{ true };
+	ConfigValue<bool> ktx2_texture_packs{ false };                // KTX2 texture replacement (load/textures/<titleId>/)
+	ConfigValue<bool> ktx2_pack_overrides_graphic_packs{ false }; // true: replacement wins over graphic pack size/format rules
 #ifdef ENABLE_METAL
 	ConfigValue<bool> force_mesh_shaders{ false };
 #endif

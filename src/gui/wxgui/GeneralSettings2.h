@@ -73,6 +73,8 @@ private:
 	wxCheckBox* m_userDisplayisSRGB;
 
 	wxCheckBox *m_async_compile, *m_gx2drawdone_sync;
+	wxCheckBox* m_ktx2_texture_packs;  // KTX2 texture packs
+	wxChoice* m_ktx2_pack_priority;
 #ifdef ENABLE_METAL
 	wxCheckBox *m_force_mesh_shaders;
 #endif

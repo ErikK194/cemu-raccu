@@ -518,6 +518,9 @@ namespace coreinit
 
 	void InitializeConcurrency();
 
+	void SuspendActiveThreads();
+	void ResumeActiveThreads();
+
 	bool __CemuIsMulticoreMode();
 
 	OSThread_t* OSGetDefaultThread(sint32 coreIndex);

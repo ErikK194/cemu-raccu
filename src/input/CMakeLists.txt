@@ -87,6 +87,21 @@ if (HAS_WIIMOTE)
 endif ()
 
 
+if(ANDROID)
+	target_sources(CemuInput PRIVATE
+		api/Android/AndroidController.cpp
+		api/Android/AndroidController.h
+		api/Android/AndroidControllerProvider.cpp
+		api/Android/AndroidControllerProvider.h
+		api/Android/ControllerManager.cpp
+		api/Android/ControllerManager.h
+		api/Device/DeviceController.cpp
+		api/Device/DeviceController.h
+		api/Device/DeviceControllerProvider.cpp
+		api/Device/DeviceControllerProvider.h
+	)
+endif()
+
 if(ENABLE_SDL)
 	target_sources(CemuInput PRIVATE
 		api/SDL/SDLController.cpp

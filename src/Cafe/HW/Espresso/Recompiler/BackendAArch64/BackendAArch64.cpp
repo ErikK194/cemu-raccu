@@ -1484,7 +1484,29 @@ void AArch64GenContext_t::call_imm(IMLInstruction* imlInstruction)
 	ldr(x30, AdrPostImm(sp, 16));
 }
 
+static bool PPCRecompiler_generateAArch64CodeInternal(struct PPCRecFunction_t* PPCRecFunction, struct ppcImlGenContext_t* ppcImlGenContext);
+
 bool PPCRecompiler_generateAArch64Code(struct PPCRecFunction_t* PPCRecFunction, struct ppcImlGenContext_t* ppcImlGenContext)
+{
+	// xbyak_aarch64 reports encoding problems (immediate out of range, label too far, ...) by throwing.
+	// The recompiler thread has no handler, so an uncaught throw terminates the app. Treat it as a failed
+	// recompilation instead: the function then keeps running in the interpreter.
+	try
+	{
+		return PPCRecompiler_generateAArch64CodeInternal(PPCRecFunction, ppcImlGenContext);
+	}
+	catch (const std::exception& e)
+	{
+		cemuLog_log(LogType::Force, "PPCRecompiler: AArch64 code generation failed for function 0x{:08x}: {}", PPCRecFunction->ppcAddress, e.what());
+	}
+	catch (...)
+	{
+		cemuLog_log(LogType::Force, "PPCRecompiler: AArch64 code generation failed for function 0x{:08x}: unknown exception", PPCRecFunction->ppcAddress);
+	}
+	return false;
+}
+
+static bool PPCRecompiler_generateAArch64CodeInternal(struct PPCRecFunction_t* PPCRecFunction, struct ppcImlGenContext_t* ppcImlGenContext)
 {
 	AArch64Allocator allocator;
 	AArch64GenContext_t aarch64GenContext{&allocator};

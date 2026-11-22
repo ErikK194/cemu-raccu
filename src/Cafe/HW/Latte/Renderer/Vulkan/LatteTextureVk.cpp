@@ -50,8 +50,17 @@ LatteTextureVk::LatteTextureVk(class VulkanRenderer* vkRenderer, Latte::E_DIM di
 	imageInfo.format = texFormatInfo.vkImageFormat;
 	vkObjTex->m_imageAspect = texFormatInfo.vkImageAspect;
 	m_isAlternateFormat = texFormatInfo.isAlternateFormat;
+
+	// TexturePack: a KTX2-replaced texture uses the transcoded host format and the replacement's complete mip chain
+	if (texPackReplacement)
+	{
+		imageInfo.format = VulkanRenderer::GetTexPackReplacementFormat(*texPackReplacement);
+		imageInfo.mipLevels = texPackReplacement->levelCount;
+		vkObjTex->m_imageAspect = VK_IMAGE_ASPECT_COLOR_BIT;
+		m_isAlternateFormat = true;
+	}
 	
-	if (isDepth == false && texFormatInfo.isCompressed)
+	if (isDepth == false && texFormatInfo.isCompressed && !texPackReplacement)
 	{
 		imageInfo.flags |= VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT;
 	}
@@ -64,7 +73,7 @@ LatteTextureVk::LatteTextureVk(class VulkanRenderer* vkRenderer, Latte::E_DIM di
 	}
 	else
 	{
-		if(Latte::IsCompressedFormat(format) == false && texFormatInfo.vkImageFormat != VK_FORMAT_R4G4_UNORM_PACK8) // Vulkan's R4G4 cant be used as a color attachment
+		if(Latte::IsCompressedFormat(format) == false && texFormatInfo.vkImageFormat != VK_FORMAT_R4G4_UNORM_PACK8 && !texPackReplacement) // Vulkan's R4G4 cant be used as a color attachment; texture-pack replacements are never render targets
 			imageInfo.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	}
 
@@ -110,7 +119,7 @@ LatteTextureVk::LatteTextureVk(class VulkanRenderer* vkRenderer, Latte::E_DIM di
 	vkObjTex->m_format = imageInfo.format;
 
 	// init layout array
-	m_layoutsMips = std::max(mipLevels, 1u); // todo - use effective mip count
+	m_layoutsMips = texPackReplacement ? texPackReplacement->levelCount : std::max(mipLevels, 1u); // todo - use effective mip count
 	m_layoutsDepth = std::max(depth, 1u);
 	if (Is3DTexture())
 		m_layouts.resize(m_layoutsMips, VK_IMAGE_LAYOUT_UNDEFINED); // one per mip

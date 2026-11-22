@@ -90,6 +90,24 @@ namespace coreinit
 		uint32 selectedCore;
 	};
 
+	void SuspendActiveThreads()
+	{
+		__OSLockScheduler();
+		const std::vector<OSThread_t*> threads = s_activeThreads; // copy, the list may change while iterating
+		for (OSThread_t* thread : threads)
+			__OSSuspendThreadNolock(thread);
+		__OSUnlockScheduler();
+	}
+
+	void ResumeActiveThreads()
+	{
+		__OSLockScheduler();
+		const std::vector<OSThread_t*> threads = s_activeThreads; // copy, the list may change while iterating
+		for (OSThread_t* thread : threads)
+			__OSResumeThreadInternal(thread, 1);
+		__OSUnlockScheduler();
+	}
+
 	std::unordered_map<OSThread_t*, OSHostThread*> s_threadToFiber;
 
 	bool __CemuIsMulticoreMode()

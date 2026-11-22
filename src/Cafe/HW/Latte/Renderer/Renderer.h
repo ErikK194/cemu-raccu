@@ -30,6 +30,8 @@ enum class GfxVendor
 	MAX
 };
 
+namespace texpack { struct TranscodedTexture; } // texture-pack
+
 enum class RendererAPI
 {
 	OpenGL,
@@ -112,6 +114,9 @@ public:
 
 	virtual void texture_clearSlice(LatteTexture* hostTexture, sint32 sliceIndex, sint32 mipIndex) = 0;
 	virtual void texture_loadSlice(LatteTexture* hostTexture, sint32 width, sint32 height, sint32 depth, void* pixelData, sint32 sliceIndex, sint32 mipIndex, uint32 compressedImageSize) = 0;
+	// TexturePack: upload all levels of a transcoded KTX2 replacement into a texture created for it. Only renderers that call
+	// TexPackCemu::SetRendererTargetFormat ever receive this.
+	virtual bool texture_loadTexPackReplacement(LatteTexture* hostTexture, const struct texpack::TranscodedTexture& data, uint32 firstLevel) { return false; }
 	virtual void texture_clearColorSlice(LatteTexture* hostTexture, sint32 sliceIndex, sint32 mipIndex, float r, float g, float b, float a) = 0;
 	virtual void texture_clearDepthSlice(LatteTexture* hostTexture, uint32 sliceIndex, sint32 mipIndex, bool clearDepth, bool clearStencil, float depthValue, uint32 stencilValue) = 0;
 

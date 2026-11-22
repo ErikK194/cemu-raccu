@@ -143,6 +143,8 @@ XMLConfigParser CemuConfig::Load(XMLConfigParser& parser)
 	downscale_filter = graphic.get("DownscaleFilter", kLinearFilter);
 	fullscreen_scaling = graphic.get("FullscreenScaling", kKeepAspectRatio);
 	async_compile = graphic.get("AsyncCompile", async_compile);
+	ktx2_texture_packs = graphic.get("Ktx2TexturePacks", false);
+	ktx2_pack_overrides_graphic_packs = graphic.get("Ktx2TexturePackPriority", false);
 	vk_accurate_barriers = graphic.get("vkAccurateBarriers", true); // this used to be "VulkanAccurateBarriers" but because we changed the default to true in 1.27.1 the option name had to be changed
 #ifdef ENABLE_METAL
 	force_mesh_shaders = graphic.get("ForceMeshShaders", false);
@@ -290,6 +292,11 @@ XMLConfigParser CemuConfig::Load(XMLConfigParser& parser)
 	emulated_usb_devices.emulate_infinity_base = usbdevices.get("EmulateInfinityBase", emulated_usb_devices.emulate_infinity_base);
 	emulated_usb_devices.emulate_dimensions_toypad = usbdevices.get("EmulateDimensionsToypad", emulated_usb_devices.emulate_dimensions_toypad);
 
+
+#if BOOST_PLAT_ANDROID
+	custom_driver_path = parser.get("custom_driver_path", "");
+#endif
+
 	return parser;
 }
 
@@ -377,6 +384,8 @@ XMLConfigParser CemuConfig::Save(XMLConfigParser& parser)
 	graphic.set("DownscaleFilter", downscale_filter);
 	graphic.set("FullscreenScaling", fullscreen_scaling);
 	graphic.set("AsyncCompile", async_compile.GetValue());
+	graphic.set("Ktx2TexturePacks", ktx2_texture_packs.GetValue());
+	graphic.set("Ktx2TexturePackPriority", ktx2_pack_overrides_graphic_packs.GetValue());
 	graphic.set("vkAccurateBarriers", vk_accurate_barriers);
 
 	auto overlay_node = graphic.set("Overlay");
@@ -454,6 +463,10 @@ XMLConfigParser CemuConfig::Save(XMLConfigParser& parser)
 	usbdevices.set("EmulateSkylanderPortal", emulated_usb_devices.emulate_skylander_portal.GetValue());
 	usbdevices.set("EmulateInfinityBase", emulated_usb_devices.emulate_infinity_base.GetValue());
 	usbdevices.set("EmulateDimensionsToypad", emulated_usb_devices.emulate_dimensions_toypad.GetValue());
+
+#if BOOST_PLAT_ANDROID
+	config.set("custom_driver_path", custom_driver_path.GetValue());
+#endif
 
 	return config;
 }

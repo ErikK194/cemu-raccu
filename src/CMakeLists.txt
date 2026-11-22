@@ -25,6 +25,10 @@ elseif(UNIX)
 		else()
 			add_compile_definitions(_XOPEN_SOURCE)
 		endif()
+	elseif(ANDROID)
+		if(ENABLE_VULKAN)
+			add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR)
+		endif()
 	else()
 		if (ENABLE_VULKAN)
 			add_compile_definitions(
@@ -65,52 +69,65 @@ add_subdirectory(audio)
 add_subdirectory(util)
 add_subdirectory(imgui)
 add_subdirectory(resource)
+if(NOT ANDROID)
+	add_subdirectory(tools/texpack) # texture-pack tools (host only)
+endif()
 
-add_executable(CemuBin
-	main.cpp
-	mainLLE.cpp
-)
-
-cemu_use_precompiled_header(CemuBin)
-
-if(MSVC)
-	# set pdb and linker options for Release builds
-	target_link_options(CemuBin PRIVATE
-		"$<$<CONFIG:Release>:/DEBUG:FULL;/OPT:REF;/OPT:ICF;/INCREMENTAL:NO>"
+if(ANDROID)
+	add_library(CemuBin STATIC
+		main.cpp
+		mainLLE.cpp
 	)
-	if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-		# produce pdb in a subdirectory and then strip it to decrease shipping size
-		set_property(TARGET CemuBin PROPERTY PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/symbols")
+
+	cemu_use_precompiled_header(CemuBin)
+
+	add_subdirectory(android/app/src/main/cpp)
+else()
+	add_executable(CemuBin
+		main.cpp
+		mainLLE.cpp
+	)
+
+	cemu_use_precompiled_header(CemuBin)
+
+	if(MSVC)
+		# set pdb and linker options for Release builds
 		target_link_options(CemuBin PRIVATE
-			"$<$<CONFIG:Release>:/PDBSTRIPPED:$<TARGET_FILE_DIR:CemuBin>/$<TARGET_FILE_BASE_NAME:CemuBin>.pdb>"
+			"$<$<CONFIG:Release>:/DEBUG:FULL;/OPT:REF;/OPT:ICF;/INCREMENTAL:NO>"
+		)
+		if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+			# produce pdb in a subdirectory and then strip it to decrease shipping size
+			set_property(TARGET CemuBin PROPERTY PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/symbols")
+			target_link_options(CemuBin PRIVATE
+				"$<$<CONFIG:Release>:/PDBSTRIPPED:$<TARGET_FILE_DIR:CemuBin>/$<TARGET_FILE_BASE_NAME:CemuBin>.pdb>"
+			)
+		endif()
+	endif()
+
+	if(MSVC AND MSVC_VERSION EQUAL 1940)
+		# workaround for an msvc issue on VS 17.10 where generated ILK files are too large
+		# see https://developercommunity.visualstudio.com/t/After-updating-to-VS-1710-the-size-of-/10665511
+		set_target_properties(CemuBin PROPERTIES LINK_FLAGS "/INCREMENTAL:NO")
+	endif()
+
+	if(WIN32)
+		target_sources(CemuBin PRIVATE
+			resource/cemu.rc
+			../dist/windows/cemu.manifest
+	)
+	endif()
+
+	if(APPLE AND CMAKE_GENERATOR STREQUAL "Xcode")
+		set_target_properties(CemuBin PROPERTIES
+			XCODE_ATTRIBUTE_ENABLE_DEBUG_DYLIB[variant=Debug] "YES"
 		)
 	endif()
+
+	string(TIMESTAMP CURRENT_YEAR "%Y" UTC)
+	set_property(TARGET CemuBin PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	set_property(TARGET CemuBin PROPERTY WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>)
+	set(OUTPUT_NAME "Cemu_$<LOWER_CASE:$<CONFIG>>")
 endif()
-
-if(MSVC AND MSVC_VERSION EQUAL 1940)
-	# workaround for an msvc issue on VS 17.10 where generated ILK files are too large
-	# see https://developercommunity.visualstudio.com/t/After-updating-to-VS-1710-the-size-of-/10665511
-	set_target_properties(CemuBin PROPERTIES LINK_FLAGS "/INCREMENTAL:NO")
-endif()
-
-if(WIN32)
-	target_sources(CemuBin PRIVATE
-	resource/cemu.rc
-	../dist/windows/cemu.manifest
-	)
-endif()
-
-if(APPLE AND CMAKE_GENERATOR STREQUAL "Xcode")
-    set_target_properties(CemuBin PROPERTIES
-        XCODE_ATTRIBUTE_ENABLE_DEBUG_DYLIB[variant=Debug] "YES"
-    )
-endif()
-
-string(TIMESTAMP CURRENT_YEAR "%Y" UTC)
-
-set_property(TARGET CemuBin PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-set_property(TARGET CemuBin PROPERTY WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>)
-set(OUTPUT_NAME "Cemu_$<LOWER_CASE:$<CONFIG>>")
 
 if (MACOS_BUNDLE)
 	set_property(TARGET CemuBin PROPERTY MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/resource/MacOSXBundleInfo.plist.in")

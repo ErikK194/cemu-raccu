@@ -2,6 +2,11 @@
 
 #include "input/api/ControllerProvider.h"
 
+#if BOOST_PLAT_ANDROID
+#include "input/api/Android/AndroidControllerProvider.h"
+#include "input/api/Device/DeviceControllerProvider.h"
+#endif
+
 #include "input/emulated/VPADController.h"
 #include "input/emulated/WPADController.h"
 

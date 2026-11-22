@@ -420,6 +420,33 @@ wxPanel* GeneralSettings2::AddGraphicsPage(wxNotebook* notebook)
 	}
 
 	{
+		// KTX2 texture packs (texture-pack reference implementation); both settings apply live, the GPU thread recreates the
+		// affected textures between commands
+		auto box = new wxStaticBox(graphics_panel, wxID_ANY, _("Texture packs (KTX2)"));
+		auto box_sizer = new wxStaticBoxSizer(box, wxVERTICAL);
+		auto* row = new wxFlexGridSizer(0, 3, 0, 0);
+
+		m_ktx2_texture_packs = new wxCheckBox(box, wxID_ANY, _("Replace textures"));
+		m_ktx2_texture_packs->SetToolTip(_("Replaces game textures with KTX2 files from load/textures/<title id>/.\nTakes effect immediately, also while a game is running.\nVulkan only"));
+		m_ktx2_texture_packs->Bind(wxEVT_CHECKBOX, [](wxCommandEvent& event) {
+			GetConfig().ktx2_texture_packs = event.IsChecked();
+		});
+		row->Add(m_ktx2_texture_packs, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+
+		row->Add(new wxStaticText(box, wxID_ANY, _("Priority when a graphic pack rule changes the same texture")), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+		wxString priorityChoices[] = { _("Graphic pack rule"), _("Texture pack") };
+		m_ktx2_pack_priority = new wxChoice(box, wxID_ANY, wxDefaultPosition, { 230, -1 }, std::size(priorityChoices), priorityChoices);
+		m_ktx2_pack_priority->SetToolTip(_("A graphic pack texture rule can change the size or format of a texture that also has a KTX2 replacement.\nGraphic pack rule: the rule is kept, the texture stays original.\nTexture pack: the KTX2 replacement is used, the rule's size/format change is ignored for this texture.\nLOD bias and anisotropy rules always apply."));
+		m_ktx2_pack_priority->Bind(wxEVT_CHOICE, [](wxCommandEvent& event) {
+			GetConfig().ktx2_pack_overrides_graphic_packs = event.GetSelection() == 1;
+		});
+		row->Add(m_ktx2_pack_priority, 0, wxALL, 5);
+
+		box_sizer->Add(row, 0, wxEXPAND, 5);
+		graphics_panel_sizer->Add(box_sizer, 0, wxEXPAND | wxALL, 5);
+	}
+
+	{
 		auto box = new wxStaticBox(graphics_panel, wxID_ANY, _("Gamma settings"));
 		auto box_sizer = new wxStaticBoxSizer(box, wxVERTICAL);
 		auto row = new wxFlexGridSizer(0, 2, 0, 0);
@@ -1268,6 +1295,8 @@ void GeneralSettings2::StoreConfig()
 	config.force_mesh_shaders = m_force_mesh_shaders->IsChecked();
 #endif
 	config.async_compile = m_async_compile->IsChecked();
+	config.ktx2_texture_packs = m_ktx2_texture_packs->IsChecked();
+	config.ktx2_pack_overrides_graphic_packs = m_ktx2_pack_priority->GetSelection() == 1;
 
 	config.overlay.position = (ScreenPosition)m_overlay_position->GetSelection(); wxASSERT((int)config.overlay.position <= (int)ScreenPosition::kBottomRight);
 	config.overlay.text_color = m_overlay_font_color->GetColour().GetRGBA();
@@ -1341,7 +1370,7 @@ void GeneralSettings2::DisableSettings(bool game_launched)
 
 void GeneralSettings2::OnAudioLatencyChanged(wxCommandEvent& event)
 {
-	IAudioAPI::s_audioDelay = event.GetInt();
+	IAudioAPI::SetAudioDelay(event.GetInt());
 	event.Skip();
 }
 
@@ -1941,6 +1970,8 @@ void GeneralSettings2::ApplyConfig()
 	}
 	m_async_compile->SetValue(config.async_compile);
 	m_gx2drawdone_sync->SetValue(config.gx2drawdone_sync);
+	m_ktx2_texture_packs->SetValue(config.ktx2_texture_packs);
+	m_ktx2_pack_priority->SetSelection(config.ktx2_pack_overrides_graphic_packs ? 1 : 0);
 #ifdef ENABLE_METAL
 	m_force_mesh_shaders->SetValue(config.force_mesh_shaders);
 #endif

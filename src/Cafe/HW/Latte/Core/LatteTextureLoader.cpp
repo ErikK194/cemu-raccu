@@ -3,6 +3,8 @@
 #include "Cafe/HW/Latte/LatteAddrLib/LatteAddrLib.h"
 #include "config/ActiveSettings.h"
 #include "Cafe/CafeSystem.h"
+#include "Cafe/HW/Latte/TexturePack/TexPackCemu.h"
+#include "Cafe/HW/Latte/TexturePack/TexPackDecode.h"
 
 //#define BENCHMARK_TEXTURE_DECODING		// if defined, time it takes to decode textures will be measured and logged to log.txt
 
@@ -597,6 +599,30 @@ void LatteTextureLoader_UpdateTextureSliceData(LatteTexture* tex, uint32 sliceIn
 	Latte::E_GX2SURFFMT format = tex->format;
 	LatteTextureLoader_begin(&textureLoader, sliceIndex, mipIndex, physImagePtr, physMipPtr, format, dim, width, height, depth, mipLevels, pitch, tileMode, swizzle);
 
+	// TexturePack: the key is derived once from the level-0 bytes currently in guest memory and shared by all mips.
+	// Recomputed on every level-0 load so a reused texture object never keeps a stale key.
+	const bool texPackActive = TexPackCemu::IsKeyingActive() || tex->texPackReplacement.has_value();
+	if (mipIndex == 0 && sliceIndex == 0)
+	{
+		tex->texPackKeyValid = false;
+		if (texPackActive)
+		{
+			texpack::TextureKey key;
+			const texpack::KeyStatus status = TexPackCemu::ComputeKey(tex, physImagePtr, key);
+			tex->texPackKeyValid = status == texpack::KeyStatus::Ok;
+			if (tex->texPackKeyValid)
+				tex->texPackKey = key;
+			if (TexPackCemu::IsDumpActive())
+				TexPackCemu::LogKey(tex, physImagePtr, status, key); // keys.csv is part of the PNG dump only
+			// replacement state must match the data: otherwise rebuild the texture object between commands
+			if (TexPackCemu::NeedsRecreate(tex, tex->texPackKeyValid, tex->texPackKey))
+				TexPackCemu::FlagRecreate(tex);
+			else
+				tex->texPackRecreateCount = 0;
+		}
+	}
+	const bool texPackDump = texPackActive && TexPackCemu::IsDumpActive() && tex->texPackKeyValid && sliceIndex == 0 && !tex->isUpdatedOnGPU;
+
 	// enable texture dumping
 	textureLoader.dump = ActiveSettings::DumpTexturesEnabled();
 	if (textureLoader.dump)
@@ -623,6 +649,23 @@ void LatteTextureLoader_UpdateTextureSliceData(LatteTexture* tex, uint32 sliceIn
 			else
 				g_renderer->texture_clearColorSlice(tex, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f);
 		}
+	}
+
+	// TexturePack: a replaced texture never receives guest pixels. Level 0 uploads the complete KTX2 chain (all host mips);
+	// the guest change tracking stays active so new guest data is noticed (and leads to a recreate if the key changes).
+	if (tex->texPackReplacement)
+	{
+		if (mipIndex == 0 && sliceIndex == 0 && !TexPackCemu::UploadReplacement(tex))
+			TexPackCemu::FlagRecreate(tex);
+		if (mipIndex == 0 || (tex->texDataPtrLow == 0 && tex->texDataPtrHigh == 0))
+		{
+			tex->texDataPtrLow = physImagePtr + textureLoader.minOffsetOutdated;
+			tex->texDataPtrHigh = physImagePtr + textureLoader.maxOffsetOutdated;
+			LatteTC_ResetTextureChangeTracker(tex, true);
+		}
+		if (textureLoader.dump)
+			free(textureLoader.dumpRGBA);
+		return;
 	}
 
 	if (texDecoder == nullptr)
@@ -669,6 +712,42 @@ void LatteTextureLoader_UpdateTextureSliceData(LatteTexture* tex, uint32 sliceIn
 				pixelOutput += 4;
 			}
 		}
+	}
+
+	// TexturePack: export this original mip level as lossless RGBA8 PNG (no filtering, no channel changes)
+	if (texPackDump)
+	{
+		const sint32 w = textureLoader.width;
+		const sint32 h = textureLoader.height;
+		std::vector<uint8> rgba((size_t)w * h * 4);
+		if (textureLoader.stepX == 1)
+		{
+			// RGBA8: element bytes are the pixel bytes
+			for (sint32 y = 0; y < h; y++)
+				for (sint32 x = 0; x < w; x++)
+					memcpy(rgba.data() + ((size_t)y * w + x) * 4, LatteTextureLoader_GetInput(&textureLoader, x, y), 4);
+		}
+		else
+		{
+			// BC1/BC2: integer-exact decode (bit replication, BC2 always four-colour), see TexPackDecode.h
+			const bool isBC2 = (uint32)format == 0x32;
+			uint8 block[64];
+			for (sint32 by = 0; by < (h + 3) / 4; by++)
+			{
+				for (sint32 bx = 0; bx < (w + 3) / 4; bx++)
+				{
+					const uint8* blockData = LatteTextureLoader_GetInput(&textureLoader, bx * 4, by * 4);
+					if (isBC2)
+						texpack::DecodeBC2Block(blockData, block);
+					else
+						texpack::DecodeBC1Block(blockData, block);
+					for (sint32 py = 0; py < 4 && by * 4 + py < h; py++)
+						for (sint32 px = 0; px < 4 && bx * 4 + px < w; px++)
+							memcpy(rgba.data() + ((size_t)(by * 4 + py) * w + (bx * 4 + px)) * 4, block + (py * 4 + px) * 4, 4);
+				}
+			}
+		}
+		TexPackCemu::QueueDump(tex->texPackKey, mipIndex, (uint32)w, (uint32)h, std::move(rgba));
 	}
 
 	// update texture data offsets and hashes

@@ -1,6 +1,7 @@
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
+#include "Cafe/HW/Latte/TexturePack/TexPackCemu.h"
 
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 
@@ -188,6 +189,7 @@ void LatteTexture_updateTexturesForStage(LatteDecompilerShader* shaderContext, u
 		if (!textureView)
 		{
 			// view not found, create a new mapping which will also create a new texture if necessary
+			TexPackCemu::ScopedReplacementEligible texPackEligible; // TexturePack: sampled textures may be replaced
 			textureView = LatteTexture_CreateMapping(physAddr, physMipAddr, width, height, depth, pitch, tileMode, swizzle, viewFirstMip, viewNumMips, viewFirstSlice, viewNumSlices, format, dim, dim, isDepthSampler);
 			if (textureView == nullptr)
 				continue;
@@ -318,6 +320,9 @@ sint32 LatteTexture_getEffectiveWidth(LatteTexture* texture)
 // returns true if the two textures have the same rescale factor
 bool LatteTexture_doesEffectiveRescaleRatioMatch(LatteTexture* texture1, sint32 mipLevel1, LatteTexture* texture2, sint32 mipLevel2)
 {
+	// TexturePack: never copy into or out of a KTX2-replaced texture (host format/size/mips differ from the guest surface)
+	if (texture1->texPackReplacement || texture2->texPackReplacement)
+		return false;
 	double widthRatio1 = (double)LatteTexture_getEffectiveWidth(texture1) / (double)texture1->width;
 	double widthRatio2 = (double)LatteTexture_getEffectiveWidth(texture2) / (double)texture2->width;
 	// the difference between the factors must be less than 5%

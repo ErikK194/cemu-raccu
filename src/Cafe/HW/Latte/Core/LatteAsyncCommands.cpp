@@ -121,6 +121,7 @@ void LatteAsyncCommands_checkAndExecute()
 	// quick check if queue is empty (requires no lock)
 	if (Latte_GetStopSignal())
 		LatteThread_Exit();
+	LatteTexture_TexPackRecreatePending(); // TexturePack: between commands, no texture is in use by a pending setup
 	if (LatteAsyncCommandQueue.empty())
 		return;
 	swl_gpuAsyncCommands.LockWrite();

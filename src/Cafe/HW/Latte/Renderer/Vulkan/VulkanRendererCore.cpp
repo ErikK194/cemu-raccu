@@ -790,6 +790,22 @@ VkDescriptorSetInfo* VulkanRenderer::draw_getOrCreateDescriptorSet(PipelineInfo*
 				samplerInfo.maxLod = (float)iMaxLOD / 64.0f;
 			}
 
+			// TexturePack: map the game's LOD range onto the replacement chain. The GPU computes the LOD from the replacement's own
+			// size, so replacement level 0 (the full restored resolution) must stay reachable: a game min LOD of 0 stays 0.
+			// Only a game min LOD > 0 (finest guest levels deliberately skipped) and the max LOD are moved by log2(scale),
+			// after clamping to the levels the guest view has (a texture without mips always shows level 0).
+			// Mip filter NONE keeps level 0 only.
+			if (baseTexture->texPackReplacement && filterMip != Latte::LATTE_SQ_TEX_SAMPLER_WORD0_0::E_Z_FILTER::NONE)
+			{
+				const float shift = std::log2((float)baseTexture->texPackReplacement->width / (float)std::max(1, baseTexture->width));
+				const float hostMaxLod = (float)(baseTexture->texPackReplacement->levelCount - 1);
+				const float guestMaxLevel = (float)std::max(0, textureView->numMip - 1);
+				const float guestMinLod = std::min(samplerInfo.minLod, guestMaxLevel);
+				const float guestMaxLod = std::min(samplerInfo.maxLod, guestMaxLevel);
+				samplerInfo.minLod = guestMinLod > 0.0f ? std::clamp(guestMinLod + shift, 0.0f, hostMaxLod) : 0.0f;
+				samplerInfo.maxLod = std::clamp(guestMaxLod + shift, samplerInfo.minLod, hostMaxLod);
+			}
+
 			auto filterMin = samplerWords->WORD0.get_XY_MIN_FILTER();
 			cemu_assert_debug(filterMin != Latte::LATTE_SQ_TEX_SAMPLER_WORD0_0::E_XY_FILTER::BICUBIC); // todo
 			samplerInfo.minFilter = (filterMin == Latte::LATTE_SQ_TEX_SAMPLER_WORD0_0::E_XY_FILTER::POINT || filterMin == Latte::LATTE_SQ_TEX_SAMPLER_WORD0_0::E_XY_FILTER::ANISO_POINT) ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;

@@ -189,6 +189,11 @@ bool ActiveSettings::DumpTexturesEnabled()
 	return s_dump_textures;
 }
 
+bool ActiveSettings::DumpTexPackTexturesEnabled()
+{
+	return s_dump_texpack_originals;
+}
+
 bool ActiveSettings::DumpRecompilerFunctionsEnabled()
 {
 	return s_dump_recompiler_functions;
@@ -207,6 +212,11 @@ void ActiveSettings::EnableDumpShaders(bool state)
 void ActiveSettings::EnableDumpTextures(bool state)
 {
 	s_dump_textures = state;
+}
+
+void ActiveSettings::EnableDumpTexPackTextures(bool state)
+{
+	s_dump_texpack_originals = state;
 }
 
 void ActiveSettings::EnableDumpRecompilerFunctions(bool state)
@@ -294,3 +304,14 @@ fs::path ActiveSettings::GetDefaultMLCPath()
 	return GetUserDataPath("mlc01");
 }
 
+#if BOOST_PLAT_ANDROID
+void ActiveSettings::SetNativeLibPath(const fs::path& nativeLibPath)
+{
+	s_native_lib_path = nativeLibPath;
+}
+
+void ActiveSettings::SetInternalDir(const fs::path& internalDirPath)
+{
+	s_internal_dir_path = internalDirPath;
+}
+#endif

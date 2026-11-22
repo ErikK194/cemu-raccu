@@ -2,6 +2,7 @@
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
+#include "Cafe/HW/Latte/TexturePack/TexPackCemu.h"
 
 #include "CafeSystem.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
@@ -450,6 +451,8 @@ void LatteTexture_SyncSlice(LatteTexture* srcTexture, sint32 srcSliceIndex, sint
 	sint32 dstWidth = dstTexture->width;
 	sint32 dstHeight = dstTexture->height;
 
+	if (srcTexture->texPackReplacement || dstTexture->texPackReplacement)
+		return; // TexturePack: replaced textures hold other host data (size, format, mips) than their guest surface
 	if(srcTexture->overwriteInfo.hasFormatOverwrite != dstTexture->overwriteInfo.hasFormatOverwrite)
 		return; // dont sync: format overwrite state needs to match. Not strictly necessary but it simplifies logic down the road
 	else if(srcTexture->overwriteInfo.hasFormatOverwrite && srcTexture->overwriteInfo.format != dstTexture->overwriteInfo.format)
@@ -981,6 +984,63 @@ void LatteTexture_RecreateTextureWithDifferentMipSliceCount(LatteTexture* textur
 	LatteTexture_DeleteAbsorbedSubtextures(view->baseTexture);
 }
 
+// TexturePack: recreate every texture whose KTX2 replacement state no longer matches its guest data (memory reused for other
+// data, replacement appeared or disappeared, user option switched). The new object goes through the constructor hook
+// again, which decides the host size/format/mip count from the current guest data. Called between GPU commands.
+void LatteTexture_TexPackRecreatePending()
+{
+	TexPackCemu::OnGpuCommandBoundary(); // option switch, finished background transcodes, statistics
+	if (!TexPackCemu::TakePendingRecreates())
+		return;
+	std::vector<LatteTexture*> flagged;
+	for (LatteTexture* tex : LatteTexture::GetAllTextures())
+	{
+		if (tex && tex->texPackRecreatePending)
+			flagged.push_back(tex);
+	}
+	// replaced textures first: they no longer match their guest data (or the option was switched off) and are rebuilt
+	// at once; swaps to a replacement (upload of the HD chain) are spread over frames by a time budget, like PPSSPP
+	std::stable_partition(flagged.begin(), flagged.end(), [](const LatteTexture* t) { return t->texPackReplacement.has_value(); });
+	bool anyRecreated = false;
+	for (LatteTexture* texture : flagged)
+	{
+		// a previous recreate may already have deleted it (absorbed subtextures)
+		const auto& live = LatteTexture::GetAllTextures();
+		if (std::find(live.begin(), live.end(), texture) == live.end())
+			continue;
+		const bool budgeted = !texture->texPackReplacement;
+		if (budgeted && texture->isUpdatedOnGPU)
+		{
+			// the game rendered or copied into it after it was flagged: its output wins, no swap to a replacement
+			texture->texPackRecreatePending = false;
+			continue;
+		}
+		if (budgeted && !TexPackCemu::SwapBudgetAvailable())
+		{
+			TexPackCemu::RearmPendingRecreates(); // the rest stays flagged for the next frames
+			break;
+		}
+		texture->texPackRecreatePending = false;
+		const auto swapStart = std::chrono::steady_clock::now();
+		const uint8 recreateCount = texture->texPackRecreateCount;
+		LatteTextureView* view;
+		{
+			TexPackCemu::ScopedReplacementEligible eligible(texture->texPackEligible);
+			view = LatteTexture_CreateTexture(texture->dim, texture->physAddress, texture->physMipAddress, texture->format, texture->width, texture->height, texture->depth, texture->pitch, texture->mipLevels, texture->swizzle, texture->tileMode, texture->isDepth);
+		}
+		// reset by the first level-0 load whose data matches the new state; only a non-settling surface reaches the cap
+		view->baseTexture->texPackRecreateCount = (uint8)(recreateCount + 1);
+		LatteTexture_Delete(texture);
+		LatteTexture_GatherTextureRelations(view->baseTexture);
+		LatteTexture_UpdateTextureFromDynamicChanges(view->baseTexture);
+		LatteTexture_DeleteAbsorbedSubtextures(view->baseTexture);
+		if (budgeted)
+			TexPackCemu::ChargeSwapTime(std::chrono::duration<double>(std::chrono::steady_clock::now() - swapStart).count());
+		anyRecreated = true;
+	}
+	if (anyRecreated)
+		LatteGPUState.repeatTextureInitialization = true;
+}
 // create new texture representation
 // if allowCreateNewDataTexture is true, a new texture will be created if necessary. If it is false, only existing textures may be used, except if a data-compatible version of the requested texture already exists and it's not view compatible (todo - we should differentiate between Latte compatible views and renderer compatible)
 // the returned view will map to the provided mip and slice range within the created texture, this is to match the behavior of lookupSliceEx
@@ -1343,6 +1403,8 @@ LatteTexture::LatteTexture(Latte::E_DIM dim, MPTR physAddress, MPTR physMipAddre
 			}
 		}
 	}
+	// TexturePack: KTX2 replacement decides host size, format and mip count, so it has to be known at creation
+	TexPackCemu::OnTextureCreated(this);
 	this->enableReadback = LatteTexture_ShouldEnableReadback(physAddress, format, tileMode, width, height, depth, mipLevels, isDepth);
 
 	// calculate number of potential mip levels (from effective size)

@@ -57,7 +57,11 @@ uint32 LatteTextureVk_AdjustTextureCompSel(Latte::E_GX2SURFFMT format, uint32 co
 LatteTextureViewVk::LatteTextureViewVk(VkDevice device, LatteTextureVk* texture, Latte::E_DIM dim, Latte::E_GX2SURFFMT format, sint32 firstMip, sint32 mipCount, sint32 firstSlice, sint32 sliceCount)
 	: LatteTextureView(texture, firstMip, mipCount, firstSlice, sliceCount, dim, format), m_device(device)
 {
-	if(texture->overwriteInfo.hasFormatOverwrite)
+	if (texture->texPackReplacement)
+	{
+		m_format = texture->GetFormat(); // TexturePack: views of a replaced texture always use its transcoded host format
+	}
+	else if(texture->overwriteInfo.hasFormatOverwrite)
 	{
 		cemu_assert_debug(format == texture->format); // if format overwrite is used, the texture is no longer taking part in aliasing and the format of any view has to match
 		m_format = texture->GetFormat();
@@ -113,6 +117,15 @@ VKRObjectTextureView* LatteTextureViewVk::CreateView(uint32 gpuSamplerSwizzle)
 		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; // make sure stencil is never set, we only support sampling depth for now
 	viewInfo.subresourceRange.baseMipLevel = firstMip;
 	viewInfo.subresourceRange.levelCount = this->numMip;
+	if (baseTexture->texPackReplacement)
+	{
+		// TexturePack: a view of the whole guest chain exposes the whole replacement chain; any other range is clamped to it
+		const uint32 hostLevels = baseTexture->texPackReplacement->levelCount;
+		if (firstMip == 0 && this->numMip == baseTexture->mipLevels)
+			viewInfo.subresourceRange.levelCount = hostLevels;
+		viewInfo.subresourceRange.baseMipLevel = std::min<uint32>(firstMip, hostLevels - 1);
+		viewInfo.subresourceRange.levelCount = std::min<uint32>(viewInfo.subresourceRange.levelCount, hostLevels - viewInfo.subresourceRange.baseMipLevel);
+	}
 	if (viewInfo.viewType == VK_IMAGE_VIEW_TYPE_3D && baseTexture->Is3DTexture())
 	{
 		cemu_assert_debug(firstMip == 0);

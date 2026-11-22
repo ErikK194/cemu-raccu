@@ -152,6 +152,7 @@ enum
 	MAINFRAME_MENU_ID_DEBUG_DUMP_RPX,
 	MAINFRAME_MENU_ID_DEBUG_DUMP_FST,
 	MAINFRAME_MENU_ID_DEBUG_DUMP_CURL_REQUESTS,
+	MAINFRAME_MENU_ID_DEBUG_DUMP_TEXPACK_ORIGINALS,
 	// help
 	MAINFRAME_MENU_ID_HELP_ABOUT = 21700,
 	MAINFRAME_MENU_ID_HELP_UPDATE,
@@ -219,6 +220,7 @@ EVT_MENU(MAINFRAME_MENU_ID_DEBUG_DUMP_TEXTURES, MainWindow::OnDebugDumpGeneric)
 EVT_MENU(MAINFRAME_MENU_ID_DEBUG_DUMP_SHADERS, MainWindow::OnDebugDumpGeneric)
 EVT_MENU(MAINFRAME_MENU_ID_DEBUG_DUMP_RECOMPILER_FUNCTIONS, MainWindow::OnDebugDumpGeneric)
 EVT_MENU(MAINFRAME_MENU_ID_DEBUG_DUMP_CURL_REQUESTS, MainWindow::OnDebugSetting)
+EVT_MENU(MAINFRAME_MENU_ID_DEBUG_DUMP_TEXPACK_ORIGINALS, MainWindow::OnDebugDumpGeneric)
 // debug -> Other options
 EVT_MENU(MAINFRAME_MENU_ID_DEBUG_RENDER_UPSIDE_DOWN, MainWindow::OnDebugSetting)
 EVT_MENU(MAINFRAME_MENU_ID_DEBUG_AUDIO_AUX_ONLY, MainWindow::OnDebugSetting)
@@ -1135,6 +1137,10 @@ void MainWindow::OnDebugDumpGeneric(wxCommandEvent& event)
 		dumpSubpath = "dump/recompiler";
 		setDumpState = ActiveSettings::EnableDumpRecompilerFunctions;
 		break;
+	case MAINFRAME_MENU_ID_DEBUG_DUMP_TEXPACK_ORIGINALS:
+		dumpSubpath = "dump/texture_pack";
+		setDumpState = ActiveSettings::EnableDumpTexPackTextures;
+		break;
 	default:
 		UNREACHABLE;
 	}
@@ -1466,7 +1472,7 @@ void MainWindow::OnKeyUp(wxKeyEvent& event)
 {
 	event.Skip();
 
-	if (swkbd_hasKeyboardInputHook())
+	if (swkbd::hasKeyboardInputHook())
 		return;
 
 	HotkeySettings::CaptureInput(event);
@@ -1495,8 +1501,8 @@ void MainWindow::OnKeyDown(wxKeyEvent& event)
 
 void MainWindow::OnChar(wxKeyEvent& event)
 {
-	if (swkbd_hasKeyboardInputHook())
-		swkbd_keyInput(event.GetUnicodeKey());
+	if (swkbd::hasKeyboardInputHook())
+		swkbd::keyInput(event.GetUnicodeKey());
 
 	// event.Skip();
 }
@@ -2345,6 +2351,7 @@ void MainWindow::RecreateMenu()
 	// debug->dump submenu
 	wxMenu* debugDumpMenu = new wxMenu;
 	debugDumpMenu->AppendCheckItem(MAINFRAME_MENU_ID_DEBUG_DUMP_TEXTURES, _("&Textures"))->Check(ActiveSettings::DumpTexturesEnabled());
+	debugDumpMenu->AppendCheckItem(MAINFRAME_MENU_ID_DEBUG_DUMP_TEXPACK_ORIGINALS, _("&Original textures for KTX2 packs (PNG + keys)"))->Check(ActiveSettings::DumpTexPackTexturesEnabled());
 	debugDumpMenu->AppendCheckItem(MAINFRAME_MENU_ID_DEBUG_DUMP_SHADERS, _("&Shaders"))->Check(ActiveSettings::DumpShadersEnabled());
 	debugDumpMenu->AppendCheckItem(MAINFRAME_MENU_ID_DEBUG_DUMP_RECOMPILER_FUNCTIONS, _("&Recompiled functions"))->Check(ActiveSettings::DumpRecompilerFunctionsEnabled());
 	debugDumpMenu->AppendCheckItem(MAINFRAME_MENU_ID_DEBUG_DUMP_CURL_REQUESTS, _("&nlibcurl HTTP/HTTPS requests"));

@@ -56,6 +56,15 @@ public:
 
 	[[nodiscard]] static fs::path GetMlcPath();
 
+#if BOOST_PLAT_ANDROID
+	template <typename ...TArgs>
+	[[nodiscard]] static fs::path GetNativeLibPath(TArgs&&... args){ return GetPath(s_native_lib_path, std::forward<TArgs>(args)...); };
+
+	template <typename ...TArgs>
+	[[nodiscard]] static fs::path GetInternalPath(TArgs&&... args){ return GetPath(s_internal_dir_path, std::forward<TArgs>(args)...); };
+#endif
+
+
 	template <typename ...TArgs>
 	[[nodiscard]] static fs::path GetMlcPath(TArgs&&... args){ return GetPath(GetMlcPath(), std::forward<TArgs>(args)...); };
 	static bool IsCustomMlcPath();
@@ -73,8 +82,17 @@ private:
 	inline static fs::path s_data_path;
 	inline static fs::path s_executable_filename; // cemu.exe
 	inline static fs::path s_mlc_path;
+#if BOOST_PLAT_ANDROID
+	inline static fs::path s_native_lib_path;
+	inline static fs::path s_internal_dir_path;
+#endif
 
 public:
+
+#if BOOST_PLAT_ANDROID
+  static void SetNativeLibPath(const fs::path& nativeLibPath);
+  static void SetInternalDir(const fs::path& internalDirPath);
+#endif
 	// can be called before Init
 	[[nodiscard]] static bool IsPortableMode();
 
@@ -110,10 +128,12 @@ public:
 	// dump options
 	[[nodiscard]] static bool DumpShadersEnabled();
 	[[nodiscard]] static bool DumpTexturesEnabled();
+	[[nodiscard]] static bool DumpTexPackTexturesEnabled(); // TexturePack: PNG per original mip + key log
 	[[nodiscard]] static bool DumpRecompilerFunctionsEnabled();
 	[[nodiscard]] static bool DumpLibcurlRequestsEnabled();
 	static void EnableDumpShaders(bool state);
 	static void EnableDumpTextures(bool state);
+	static void EnableDumpTexPackTextures(bool state);
 	static void EnableDumpRecompilerFunctions(bool state);
 	static void EnableDumpLibcurlRequests(bool state);
 
@@ -129,6 +149,7 @@ private:
 	// dump options
 	inline static bool s_dump_shaders = false;
 	inline static bool s_dump_textures = false;
+	inline static bool s_dump_texpack_originals = false;
 	inline static bool s_dump_recompiler_functions = false;
 	inline static bool s_dump_libcurl_requests = false;
 
